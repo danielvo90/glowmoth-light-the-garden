@@ -9,7 +9,7 @@ import { EVENT_OVER, EVENT_WIN } from './world.js';
 import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WIN } from './render.js';
 
 const START_SECONDS = 4;
-const PLAY_SECONDS = 24;
+const PLAY_SECONDS = 12;
 const WIN_LIMIT_SECONDS = 600;
 const END_LIMIT_SECONDS = 600;
 const SAMPLE = 1 / 30;
@@ -35,10 +35,10 @@ function steerTo(state, tx, ty, clear) {
   return { x: dx / d, y: dy / d, dash: false };
 }
 
-function autopilot(state, careful) {
+function autopilot(state, careful, lightLanterns = true) {
   const player = state.player;
   const clear = careful ? 130 : 70;
-  if (state.glow >= 2) {
+  if (lightLanterns && state.glow >= 2) {
     let lantern = null;
     for (const item of state.lanterns) {
       if (!item.lit && (lantern === null || Math.hypot(item.x - player.x, item.y - player.y) < Math.hypot(lantern.x - player.x, lantern.y - player.y))) lantern = item;
@@ -72,8 +72,12 @@ export function stageShot(name, world) {
   }
   const limit = name === 'end' ? END_LIMIT_SECONDS : PLAY_SECONDS;
   const careful = name !== 'end';
+  // The end scene's pilot never lights a lantern: it gathers glow while the
+  // wisps close in, so the scene ends in a real loss, not a win followed by one.
+  const lightLanterns = name !== 'end';
   for (let i = 0; i < limit / STEP; i += 1) {
-    if (world.step(STEP, autopilot(world.state, careful), false) & EVENT_OVER) break;
+    const events = world.step(STEP, autopilot(world.state, careful, lightLanterns), false);
+    if (events & (EVENT_OVER | EVENT_WIN)) break;
   }
   const over = world.state.lives === 0 || world.state.timeLeft <= 0;
   return { screen: over ? SCREEN_OVER : SCREEN_PLAY, best: world.state.score };
